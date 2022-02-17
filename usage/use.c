@@ -2,7 +2,12 @@
 #include <stdio.h>
 
 int main() {
+    char err_buf[1024];
     struct SecretKeyParamsBuilder *builder = params_builder_new();
+    if (params_builder_primary_user_id(builder, NULL) != 0) {
+        error_message(err_buf, 1024);
+        printf("error: %s\n", err_buf);
+    }
     params_builder_primary_user_id(builder, "Omar Elawady <elawadio@incubaid.com>");    
     struct SecretKeyParams *params = params_builder_build(builder);
     params_builder_free(builder);

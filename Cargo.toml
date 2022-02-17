@@ -8,9 +8,6 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib"]
 
-[parse]
-parse_deps = true
-
 [dependencies]
 chrono = "0.4.19"
 derive_builder = "0.10.2"

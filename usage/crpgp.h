@@ -3,11 +3,24 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+int last_error_length(void);
+
+/**
+ * Write the latest error message to a buffer.
+ *
+ * # Returns
+ *
+ * This returns the number of bytes written to the buffer. If no bytes were
+ * written (i.e. there is no last error) then it returns `0`. If the buffer
+ * isn't big enough or a `null` pointer was passed in, you'll get a `-1`.
+ */
+int error_message(char *buffer, int length);
+
 struct SecretKeyParamsBuilder *params_builder_new(void);
 
 void params_builder_free(struct SecretKeyParamsBuilder *builder);
 
-void params_builder_primary_user_id(struct SecretKeyParamsBuilder *builder, char *primary_user_id);
+char params_builder_primary_user_id(struct SecretKeyParamsBuilder *builder, char *primary_user_id);
 
 struct SecretKeyParams *params_builder_build(struct SecretKeyParamsBuilder *builder);
 
@@ -25,8 +38,8 @@ uint8_t *signature_serialize(struct Signature *signature, size_t *output_len);
 
 struct Signature *signature_deserialize(uint8_t *signature_bytes, size_t len);
 
-void signature_free(struct Signature *signature);
+char signature_free(struct Signature *signature);
 
-bool public_key_verify(struct PublicKey *cfg_ptr, uint8_t *data, size_t data_len, struct Signature *signature);
+char public_key_verify(struct PublicKey *public_key, uint8_t *data, size_t data_len, struct Signature *signature);
 
-void public_key_free(struct PublicKey *public_key);
+char public_key_free(struct PublicKey *public_key);
