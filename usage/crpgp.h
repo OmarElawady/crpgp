@@ -18,7 +18,7 @@ int error_message(char *buffer, int length);
 
 struct SecretKeyParamsBuilder *params_builder_new(void);
 
-void params_builder_free(struct SecretKeyParamsBuilder *builder);
+char params_builder_free(struct SecretKeyParamsBuilder *builder);
 
 char params_builder_primary_user_id(struct SecretKeyParamsBuilder *builder, char *primary_user_id);
 
@@ -26,19 +26,23 @@ struct SecretKeyParams *params_builder_build(struct SecretKeyParamsBuilder *buil
 
 struct SecretKey *params_generate_secret_key_and_free(struct SecretKeyParams *params);
 
-struct SignedSecretKey *secret_key_sign_and_free(struct SecretKey *secret_key);
+struct SignedSecretKey *secret_key_sign(struct SecretKey *secret_key);
 
 struct PublicKey *signed_secret_key_public_key(struct SignedSecretKey *signed_secret_key);
 
-struct Signature *signed_secret_create_signature(struct SignedSecretKey *signed_secret_key,
-                                          uint8_t *data,
-                                          size_t len);
+struct Signature *signed_secret_key_create_signature(struct SignedSecretKey *signed_secret_key,
+                                              uint8_t *data,
+                                              size_t len);
+
+char signed_secret_key_free(struct SignedSecretKey *signed_secret_key);
 
 uint8_t *signature_serialize(struct Signature *signature, size_t *output_len);
 
 struct Signature *signature_deserialize(uint8_t *signature_bytes, size_t len);
 
 char signature_free(struct Signature *signature);
+
+char signature_serialization_free(uint8_t *ser);
 
 char public_key_verify(struct PublicKey *public_key, uint8_t *data, size_t data_len, struct Signature *signature);
 

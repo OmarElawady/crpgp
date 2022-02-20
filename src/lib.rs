@@ -108,11 +108,16 @@ pub extern "C" fn params_builder_new() -> *mut pgp::composed::key::SecretKeyPara
 }
 
 #[no_mangle]
-pub extern "C" fn params_builder_free(builder: *mut pgp::composed::key::SecretKeyParamsBuilder)  {
-    assert!(!builder.is_null());
+pub extern "C" fn params_builder_free(builder: *mut pgp::composed::key::SecretKeyParamsBuilder) -> c_char {
+    println!("free builder");
+    if builder.is_null() {
+        update_last_error(Box::new("builder can't be null".into()));
+        return -1
+    }
     unsafe {
         Box::from_raw(builder);
-    }
+    };
+    return 0
 }
 
 #[no_mangle]
@@ -163,7 +168,8 @@ pub extern "C" fn params_builder_build(
     }
 }
 
-
+// TODO: is there a way to make this method not free its obj?
+//       - or it will be hidden into a builder generate method?
 #[no_mangle]
 pub extern "C" fn params_generate_secret_key_and_free (
     params: Box<pgp::composed::key::SecretKeyParams>
@@ -179,7 +185,7 @@ pub extern "C" fn params_generate_secret_key_and_free (
 }
 
 #[no_mangle]
-pub extern "C" fn secret_key_sign_and_free(
+pub extern "C" fn secret_key_sign(
     secret_key: Box<pgp::SecretKey>
 ) -> *mut pgp::SignedSecretKey {
     let secret_key: pgp::SecretKey = *secret_key;
@@ -213,7 +219,7 @@ pub extern "C" fn signed_secret_key_public_key(
 
 
 #[no_mangle]
-pub extern "C" fn signed_secret_create_signature(
+pub extern "C" fn signed_secret_key_create_signature(
     signed_secret_key: *mut pgp::SignedSecretKey,
     data: *mut u8,
     len: size_t
@@ -262,6 +268,21 @@ pub extern "C" fn signed_secret_create_signature(
     Box::into_raw(Box::new(signature))
 }
 
+#[no_mangle]
+pub extern "C" fn signed_secret_key_free(
+    signed_secret_key: *mut pgp::SignedSecretKey,
+) -> c_char {
+    if signed_secret_key.is_null() {
+        update_last_error(Box::new("signed secret key can't be null".into()));
+        return -1
+    }
+
+    unsafe {
+        Box::from_raw(signed_secret_key);
+    }
+    0
+} 
+
 
 #[no_mangle]
 pub extern "C" fn signature_serialize(
@@ -300,9 +321,10 @@ pub extern "C" fn signature_deserialize(
         return ptr::null_mut()
     }
     let signature_vec = unsafe{
-        assert!(!signature_bytes.is_null());
-
-        Vec::from_raw_parts(signature_bytes, len, len)
+        let v = Vec::from_raw_parts(signature_bytes, len, len);
+        let res = v.clone();
+        std::mem::forget(v);
+        res
     };
     let signature = pgp::Signature::from_slice(pgp::types::Version::Old, signature_vec.as_slice());
     match signature {
@@ -324,6 +346,20 @@ pub extern "C" fn signature_free(
     }
     unsafe {
         Box::from_raw(signature);
+    }
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn signature_serialization_free(
+    ser: *mut u8
+) -> c_char {
+    if ser.is_null() {
+        update_last_error(Box::new("signature serialization can't be null".into()));
+        return -1
+    }
+    unsafe {
+        Box::from_raw(ser);
     }
     0
 }
