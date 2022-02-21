@@ -1,5 +1,7 @@
 pub mod types;
 // use pgp::SecretKeyParamsBuilder;
+use pgp::Deserializable;
+use pgp::Message;
 use libc::c_int;
 use std::cell::RefCell;
 use pgp::types::PublicKeyTrait;
@@ -19,6 +21,7 @@ use pgp::crypto::{sym::SymmetricKeyAlgorithm};
 use smallvec::*;
 use sha2::{Sha256, Digest};
 use std::ptr;
+use rand::rngs::OsRng;
 
 thread_local!(
     static LAST_ERROR: RefCell<Option<Box<String>>> = RefCell::new(None);
@@ -88,11 +91,20 @@ pub unsafe extern "C" fn error_message(buffer: *mut c_char, length: c_int) -> c_
     data.len() as c_int
 }
 
+fn vec_from_ptr<T: Clone>(bytes: *mut T, len: size_t) -> Vec<T> {
+    unsafe {
+        let v = Vec::from_raw_parts(bytes, len, len);
+        let res = v.clone();
+        std::mem::forget(v);
+        res
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn params_builder_new() -> *mut pgp::composed::key::SecretKeyParamsBuilder {
     let mut builder = pgp::composed::key::SecretKeyParamsBuilder::default();
     builder
-        .key_type(KeyType::EdDSA)
+        .key_type(KeyType::Rsa(2048))
         .can_create_certificates(false)
         .can_sign(true)
         .preferred_symmetric_algorithms(smallvec![
@@ -186,11 +198,17 @@ pub extern "C" fn params_generate_secret_key_and_free (
 
 #[no_mangle]
 pub extern "C" fn secret_key_sign(
-    secret_key: Box<pgp::SecretKey>
+    secret_key: *mut pgp::SecretKey
 ) -> *mut pgp::SignedSecretKey {
-    let secret_key: pgp::SecretKey = *secret_key;
+    if secret_key.is_null() {
+        update_last_error(Box::new("secret key can't be null".into()));
+        return ptr::null_mut()
+    }
+    let secret_key = unsafe {
+        &*secret_key
+    };
     let passwd_fn = || String::new();
-    let signed_secret_key = secret_key.sign(passwd_fn);
+    let signed_secret_key = secret_key.clone().sign(passwd_fn);
     match signed_secret_key {
         Ok(v) => Box::into_raw(Box::new(v)),
         Err(e) => {
@@ -198,6 +216,21 @@ pub extern "C" fn secret_key_sign(
             ptr::null_mut()
         }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn secret_key_free(
+    secret_key: *mut pgp::SecretKey
+) -> c_char {
+    if secret_key.is_null() {
+        update_last_error(Box::new("secret key can't be null".into()));
+        return -1
+    }
+
+    unsafe {
+        Box::from_raw(secret_key);
+    }
+    0
 }
 
 #[no_mangle]
@@ -269,6 +302,77 @@ pub extern "C" fn signed_secret_key_create_signature(
 }
 
 #[no_mangle]
+pub extern "C" fn signed_secret_key_decrypt(
+    secret_key: *mut pgp::SignedSecretKey,
+    encrypted: *mut u8,
+    len: *mut size_t,
+) -> *mut u8 {
+    if secret_key.is_null() {
+        update_last_error(Box::new("secret key can't be null".into()));
+        return ptr::null_mut()
+    }
+    if encrypted.is_null() {
+        update_last_error(Box::new("encrypted data can't be null".into()));
+        return ptr::null_mut()
+    }
+    if len.is_null() {
+        update_last_error(Box::new("length data can't be null".into()));
+        return ptr::null_mut()
+    }
+    let secret_key = unsafe {
+        &*secret_key
+    };
+
+    let data = vec_from_ptr(encrypted, unsafe{*len});
+    let msg = Message::from_bytes(data.as_slice());
+    if let Err(e) = msg {
+        update_last_error(e.to_string());
+        return ptr::null_mut()    
+    }
+    let msg = msg.unwrap(); // safe unwrap
+    let msg = msg.decrypt(|| "".into(), || "".into(), &[secret_key][..]);
+    if let Err(e) = msg {
+        update_last_error(e.to_string());
+        return ptr::null_mut()    
+    }
+    let mut msg = msg.unwrap(); // safe unwrap
+    let decrypted = msg.0.next();
+    if let None = decrypted {
+        update_last_error(Box::new("message doesn't contain content".into()));
+        return ptr::null_mut()
+    }
+    let decrypted = decrypted.unwrap(); // safe unwrap
+    if let Err(e) = decrypted {
+        update_last_error(e.to_string());
+        return ptr::null_mut()    
+    }
+    let decrypted = decrypted.unwrap(); // safe unwrap
+    let decompressed = decrypted.decompress();
+    if let Err(e) = decompressed {
+        update_last_error(e.to_string());
+        return ptr::null_mut()        
+    }
+    let decompressed = decompressed.unwrap(); // safe unwrap
+    let content = decompressed.get_content();
+    if let Err(e) = content {
+        update_last_error(e.to_string());
+        return ptr::null_mut()        
+    }
+    if let Ok(None) = content {
+        update_last_error(Box::new("Message content is None(?!)".into()));
+        return ptr::null_mut()        
+    }
+    let content = content.unwrap(); // safe unwrap
+    let mut content = content.unwrap(); // safe unwrap
+    let res = content.as_mut_ptr();
+    unsafe {
+        *len = content.len();
+    }
+    std::mem::forget(content);
+    res
+}
+
+#[no_mangle]
 pub extern "C" fn signed_secret_key_free(
     signed_secret_key: *mut pgp::SignedSecretKey,
 ) -> c_char {
@@ -320,12 +424,7 @@ pub extern "C" fn signature_deserialize(
         update_last_error(Box::new("signature bytes can't be null".into()));
         return ptr::null_mut()
     }
-    let signature_vec = unsafe{
-        let v = Vec::from_raw_parts(signature_bytes, len, len);
-        let res = v.clone();
-        std::mem::forget(v);
-        res
-    };
+    let signature_vec = vec_from_ptr(signature_bytes, len);
     let signature = pgp::Signature::from_slice(pgp::types::Version::Old, signature_vec.as_slice());
     match signature {
         Ok(v) => Box::into_raw(Box::new(v)),
@@ -351,15 +450,15 @@ pub extern "C" fn signature_free(
 }
 
 #[no_mangle]
-pub extern "C" fn signature_serialization_free(
-    ser: *mut u8
+pub extern "C" fn ptr_free(
+    ptr: *mut u8
 ) -> c_char {
-    if ser.is_null() {
-        update_last_error(Box::new("signature serialization can't be null".into()));
+    if ptr.is_null() {
+        update_last_error(Box::new("pointer can't be null".into()));
         return -1
     }
     unsafe {
-        Box::from_raw(ser);
+        Box::from_raw(ptr);
     }
     0
 }
@@ -420,4 +519,50 @@ pub extern "C" fn public_key_free(
         Box::from_raw(public_key);
     }
     0
+}
+
+#[no_mangle]
+pub extern "C" fn public_key_encrypt(
+    public_key: *mut pgp::PublicKey,
+    data: *mut u8,
+    len: *mut size_t,
+) -> *mut u8 {
+    if public_key.is_null() {
+        update_last_error(Box::new("public key can't be null".into()));
+        return ptr::null_mut()
+    }
+    if data.is_null() {
+        update_last_error(Box::new("data can't be null".into()));
+        return ptr::null_mut()
+    }
+    let public_key = unsafe {
+        &*public_key
+    };
+
+    let data = vec_from_ptr(data, unsafe{*len});
+    let msg = Message::new_literal_bytes("", data.as_slice());
+    let compressed = msg.compress(CompressionAlgorithm::ZLIB);
+    if let Err(e) = compressed {
+        update_last_error(e.to_string());
+        return ptr::null_mut()
+    }
+    let compressed = compressed.unwrap(); // safe unwrap
+    let encrypted = compressed.encrypt_to_keys(&mut OsRng, SymmetricKeyAlgorithm::AES128, &[&public_key][..]);
+    if let Err(e) = encrypted {
+        update_last_error(e.to_string());
+        return ptr::null_mut()
+    }
+    let encrypted = encrypted.unwrap(); // safe unwrap
+    let bytes_vec = encrypted.to_bytes();    
+    if let Err(e) = bytes_vec {
+        update_last_error(e.to_string());
+        return ptr::null_mut()
+    }
+    let mut bytes_vec = bytes_vec.unwrap();    
+    let bytes_ptr = bytes_vec.as_mut_ptr(); // safe unwrap
+    unsafe {
+        *len = bytes_vec.len();
+    }
+    std::mem::forget(bytes_vec);
+    return bytes_ptr
 }

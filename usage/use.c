@@ -27,9 +27,26 @@ int main() {
         error_message(err_buf, 1024);
         printf("error: %s\n", err_buf);
     }
+    len = sizeof(data);
+    uint8_t *encrypted = public_key_encrypt(pk, data, &len);
+    if (encrypted == NULL) {
+        error_message(err_buf, 1024);
+        printf("error: %s\n", err_buf);    
+        return -1;
+    }
+    uint8_t *decrypted = signed_secret_key_decrypt(signed_sk, encrypted, &len);
+    if (decrypted == NULL) {
+        error_message(err_buf, 1024);
+        printf("error: %s\n", err_buf);    
+        return -1;
+    }
+    printf("decrypted (should be omar): %s", (char*)decrypted);
     public_key_free(pk);
     signature_free(sig);
+    secret_key_free(sk);
     signed_secret_key_free(signed_sk);
     signature_free(deserialized);
-    signature_serialization_free(serialized);
+    ptr_free(serialized);
+    ptr_free(encrypted);
+    ptr_free(decrypted);
 }

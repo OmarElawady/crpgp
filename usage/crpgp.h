@@ -28,11 +28,15 @@ struct SecretKey *params_generate_secret_key_and_free(struct SecretKeyParams *pa
 
 struct SignedSecretKey *secret_key_sign(struct SecretKey *secret_key);
 
+char secret_key_free(struct SecretKey *secret_key);
+
 struct PublicKey *signed_secret_key_public_key(struct SignedSecretKey *signed_secret_key);
 
 struct Signature *signed_secret_key_create_signature(struct SignedSecretKey *signed_secret_key,
                                               uint8_t *data,
                                               size_t len);
+
+uint8_t *signed_secret_key_decrypt(struct SignedSecretKey *secret_key, uint8_t *encrypted, size_t *len);
 
 char signed_secret_key_free(struct SignedSecretKey *signed_secret_key);
 
@@ -42,8 +46,10 @@ struct Signature *signature_deserialize(uint8_t *signature_bytes, size_t len);
 
 char signature_free(struct Signature *signature);
 
-char signature_serialization_free(uint8_t *ser);
+char ptr_free(uint8_t *ptr);
 
 char public_key_verify(struct PublicKey *public_key, uint8_t *data, size_t data_len, struct Signature *signature);
 
 char public_key_free(struct PublicKey *public_key);
+
+uint8_t *public_key_encrypt(struct PublicKey *public_key, uint8_t *data, size_t *len);
