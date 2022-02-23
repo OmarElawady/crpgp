@@ -18,6 +18,14 @@ This does the following:
 - Generates usage/v/crpgp.v
 - Runs usage/v/use.v
 
+## Requirements
+
+### OSX
+
+```
+cargo install --force cbindgen
+```
+
 ## Status
 
 - C memory leak test can be run by `make valgrindc`. Memory in vlang is managed by vlang garbage collector. Free methods are not exposed in v (can be).
