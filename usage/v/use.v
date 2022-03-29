@@ -33,7 +33,7 @@ fn main() {
 	spk = signed_public_key_from_armored(armored)?
 	// -------------------------------------
 	mut sig := secret_key.create_signature(str_to_bytes("omar"))?
-	armored = sig.to_armored_string()?
+	armored = sig.to_armored()?
 	println("signature")
 	println(armored)
 	sig = signature_from_armored(armored)?

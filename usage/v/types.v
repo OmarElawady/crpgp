@@ -151,9 +151,9 @@ fn (s &Signature) serialize() ?[]byte {
 	return res
 }
 
-fn (s &Signature) to_armored_string() ?string {
+fn (s &Signature) to_armored() ?string {
 	len := u64(0)
-	ser := C.signature_to_armored_string(s.internal, &len)
+	ser := C.signature_to_armored(s.internal, &len)
 	if u64(ser) == 0 {
 		construct_error()?
 		return error("")
@@ -176,7 +176,7 @@ fn deserialize_signature(bytes []byte) ?Signature {
 }
 
 fn signature_from_armored(s string) ?Signature {
-	sig := C.signature_from_string(s.str, s.len)
+	sig := C.signature_from_armored(s.str)
 	if u64(sig) == 0 {
 		construct_error()?
 		return error("")

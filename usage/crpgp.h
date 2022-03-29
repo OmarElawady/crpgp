@@ -80,9 +80,9 @@ uint8_t *signature_serialize(struct Signature *signature, size_t *output_len);
 
 struct Signature *signature_deserialize(uint8_t *signature_bytes, size_t len);
 
-char *signature_to_armored_string(struct Signature *signature, size_t *output_len);
+char *signature_to_armored(struct Signature *signature, size_t *output_len);
 
-struct Signature *signature_from_string(char *signature_bytes, size_t len);
+struct Signature *signature_from_armored(char *signature_bytes);
 
 char signature_free(struct Signature *signature);
 

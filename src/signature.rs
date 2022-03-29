@@ -43,7 +43,7 @@ pub extern "C" fn signature_deserialize(
         update_last_error(Box::new("signature bytes can't be null".into()));
         return ptr::null_mut();
     }
-    let signature_vec = vec_from_ptr(signature_bytes, len);
+    let signature_vec = ptr_to_vec(signature_bytes, len);
     let signature = pgp::Signature::from_slice(pgp::types::Version::Old, signature_vec.as_slice());
     match signature {
         Ok(v) => Box::into_raw(Box::new(v)),
@@ -55,7 +55,7 @@ pub extern "C" fn signature_deserialize(
 }
 
 #[no_mangle]
-pub extern "C" fn signature_to_armored_string(
+pub extern "C" fn signature_to_armored(
     signature: *mut pgp::Signature,
     output_len: *mut size_t,
 ) -> *mut c_char {
@@ -84,15 +84,14 @@ pub extern "C" fn signature_to_armored_string(
 }
 
 #[no_mangle]
-pub extern "C" fn signature_from_string(
+pub extern "C" fn signature_from_armored(
     signature_bytes: *mut c_char,
-    len: size_t,
 ) -> *mut pgp::Signature {
     if signature_bytes.is_null() {
         update_last_error(Box::new("signature bytes can't be null".into()));
         return ptr::null_mut();
     }
-    let signature = bytes_to_string(signature_bytes, len);
+    let signature = bytes_to_string(signature_bytes);
     if let Err(e) = signature {
         update_last_error(e);
         return ptr::null_mut();
